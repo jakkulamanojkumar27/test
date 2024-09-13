@@ -21,7 +21,7 @@ document.addEventListener('click', handleClick);
 document.addEventListener('input', (event) => debounce(() => handleInput(event), 300));
 document.addEventListener('mouseover', (event) => debounce(() => handleHover(event), 100));
 document.addEventListener('dragstart', handleDragStart);
-document.addEventListener('drop', handleDrop);
+document.addEventListener('drop', (event) => debounce(() => handleDrop(event), 100));
 document.addEventListener('change', handleChange); // Add change event listener
 document.addEventListener('keydown', handleKeyDown); // Add keydown event listener
 document.addEventListener('scroll', handleScroll); // Add scroll event listener

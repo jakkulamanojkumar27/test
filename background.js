@@ -118,17 +118,35 @@ async function simulateActions(actions) {
           element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
           break;
         case 'dragStart':
-          // Implement drag and drop logic here
-          break;
-        case 'drop':
-          // Implement drag and drop logic here
+        case 'dragStart':
+          const dragStartElement = getSimulateElement(action);
+          const dropElement = getSimulateElement(action.dropSelector);
+          if (dragStartElement && dropElement) {
+            const dragStartRect = dragStartElement.getBoundingClientRect();
+            const dropRect = dropElement.getBoundingClientRect();
+            const dragStartX = dragStartRect.left + dragStartRect.width / 2;
+            const dragStartY = dragStartRect.top + dragStartRect.height / 2;
+            const dropX = dropRect.left + dropRect.width / 2;
+            const dropY = dropRect.top + dropRect.height / 2;
+            dragStartElement.dispatchEvent(new MouseEvent('mousedown', { clientX: dragStartX, clientY: dragStartY, bubbles: true }));
+            document.dispatchEvent(new MouseEvent('mousemove', { clientX: dropX, clientY: dropY, bubbles: true }));
+            dropElement.dispatchEvent(new MouseEvent('mouseup', { clientX: dropX, clientY: dropY, bubbles: true }));
+          }
           break;
         case 'select':
           element.value = action.value;
           element.dispatchEvent(new Event('change', { bubbles: true }));
           break;
         case 'fileUpload':
-          // Implement file upload logic here
+        case 'fileUpload':
+          const fileUploadElement = getSimulateElement(action);
+          if (fileUploadElement) {
+            const files = action.files.map(file => new File([""], file.name, { type: file.type }));
+            const dataTransfer = new DataTransfer();
+            files.forEach(file => dataTransfer.items.add(file));
+            fileUploadElement.files = dataTransfer.files;
+            fileUploadElement.dispatchEvent(new Event('change', { bubbles: true }));
+          }
           break;
         case 'navigate':
           window.location.href = action.url;
@@ -143,22 +161,54 @@ async function simulateActions(actions) {
           window.location.reload();
           break;
         case 'waitForElement':
-          // Implement wait for element logic here
+        case 'waitForElement':
+          await new Promise(resolve => {
+            const interval = setInterval(() => {
+              const waitForElement = getSimulateElement(action);
+              if (waitForElement) {
+                clearInterval(interval);
+                resolve();
+              }
+            }, 100);
+          });
           break;
         case 'waitForNavigation':
-          // Implement wait for navigation logic here
+        case 'waitForNavigation':
+          await new Promise(resolve => {
+            window.addEventListener('load', () => {
+              resolve();
+            }, { once: true });
+          });
           break;
         case 'waitForTimeout':
           await new Promise(resolve => setTimeout(resolve, action.duration));
           break;
         case 'assert':
-          // Implement assert logic here
+        case 'assert':
+          if (action.assertionType === 'elementExists') {
+            const assertElement = getSimulateElement(action);
+            if (!assertElement) {
+              throw new Error(`Assertion failed: Element with selector "${action.selector.value}" does not exist.`);
+            }
+          } else if (action.assertionType === 'elementVisible') {
+            const assertElement = getSimulateElement(action);
+            if (!assertElement || !isVisible(assertElement)) {
+              throw new Error(`Assertion failed: Element with selector "${action.selector.value}" is not visible.`);
+            }
+          } else if (action.assertionType === 'textEquals') {
+            const assertElement = getSimulateElement(action);
+            if (!assertElement || assertElement.textContent !== action.expectedText) {
+              throw new Error(`Assertion failed: Text content of element with selector "${action.selector.value}" does not equal "${action.expectedText}".`);
+            }
+          }
           break;
         case 'scroll':
           window.scrollTo(action.x, action.y);
           break;
         case 'screenshot':
-          // Implement screenshot logic here
+        case 'screenshot':
+          // This is a placeholder, as taking screenshots from the background script is complex
+          console.log('Screenshot action simulated (not implemented)');
           break;
         case 'executeJavaScript':
           eval(action.script);
