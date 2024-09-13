@@ -2,8 +2,15 @@
 let isRecording = false;
 let recordedActions = [];
 
+// Keep track of connected tabs
+let connectedTabs = new Set();
+
 // Listen for messages from content script and side panel
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (sender.tab) {
+    connectedTabs.add(sender.tab.id);
+  }
+
   switch (message.type) {
     case 'START_RECORDING':
       handleStartRecording();
@@ -31,25 +38,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
     case 'RECORD_ERROR':
       console.error('Recording error:', message.error);
-      // You might want to send this error to the side panel to display to the user
       chrome.runtime.sendMessage({type: 'RECORD_ERROR', error: message.error});
       break;
   }
+
+  return true; // Indicates that the response will be sent asynchronously
 });
 
 function handleStartRecording() {
   isRecording = true;
   recordedActions = [];
-  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, {type: 'START_RECORDING'});
-  });
+  broadcastToTabs({type: 'START_RECORDING'});
 }
 
 function handleStopRecording() {
   isRecording = false;
-  chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, {type: 'STOP_RECORDING'});
-  });
+  broadcastToTabs({type: 'STOP_RECORDING'});
 }
 
 function handleActionRecorded(action) {
@@ -62,25 +66,52 @@ function handleActionRecorded(action) {
   }
 }
 
+function broadcastToTabs(message) {
+  connectedTabs.forEach(tabId => {
+    chrome.tabs.sendMessage(tabId, message, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error(`Error sending message to tab ${tabId}:`, chrome.runtime.lastError);
+        connectedTabs.delete(tabId);
+      }
+    });
+  });
+}
+
 function simulateScript() {
   chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-    chrome.scripting.executeScript({
-      target: { tabId: tabs[0].id },
-      function: simulateActions,
-      args: [recordedActions]
-    });
+    if (tabs[0]) {
+      chrome.scripting.executeScript({
+        target: { tabId: tabs[0].id },
+        function: simulateActions,
+        args: [recordedActions]
+      }).catch(error => {
+        console.error('Error simulating script:', error);
+        chrome.runtime.sendMessage({type: 'SIMULATE_ERROR', error: error.message});
+      });
+    } else {
+      console.error('No active tab found');
+      chrome.runtime.sendMessage({type: 'SIMULATE_ERROR', error: 'No active tab found'});
+    }
   });
 }
 
 function saveActions(name) {
   chrome.storage.local.set({[name]: recordedActions}, () => {
-    chrome.runtime.sendMessage({type: 'ACTIONS_SAVED', name: name});
+    if (chrome.runtime.lastError) {
+      console.error('Error saving actions:', chrome.runtime.lastError);
+      chrome.runtime.sendMessage({type: 'SAVE_ERROR', error: chrome.runtime.lastError.message});
+    } else {
+      chrome.runtime.sendMessage({type: 'ACTIONS_SAVED', name: name});
+    }
   });
 }
 
 function loadActions(name) {
   chrome.storage.local.get([name], (result) => {
-    if (result[name]) {
+    if (chrome.runtime.lastError) {
+      console.error('Error loading actions:', chrome.runtime.lastError);
+      chrome.runtime.sendMessage({type: 'LOAD_ERROR', error: chrome.runtime.lastError.message});
+    } else if (result[name]) {
       recordedActions = result[name];
       chrome.runtime.sendMessage({type: 'ACTIONS_LOADED', actions: recordedActions});
     } else {
@@ -121,3 +152,11 @@ function simulateActions(actions) {
     }
   });
 }
+
+// Clean up disconnected tabs periodically
+setInterval(() => {
+  chrome.tabs.query({}, (tabs) => {
+    const activeTabIds = new Set(tabs.map(tab => tab.id));
+    connectedTabs = new Set([...connectedTabs].filter(tabId => activeTabIds.has(tabId)));
+  });
+}, 60000); // Check every minute

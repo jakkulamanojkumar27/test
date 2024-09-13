@@ -1,4 +1,5 @@
 let isRecording = false;
+let isExtensionActive = true;
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -9,12 +10,32 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Check if extension is still active
+function checkExtensionStatus() {
+  if (chrome.runtime && chrome.runtime.id) {
+    isExtensionActive = true;
+  } else {
+    isExtensionActive = false;
+    removeEventListeners();
+  }
+}
+
 // Capture user actions
-document.addEventListener('click', handleClick);
-document.addEventListener('input', handleInput);
-document.addEventListener('mouseover', handleHover);
-document.addEventListener('dragstart', handleDragStart);
-document.addEventListener('drop', handleDrop);
+function addEventListeners() {
+  document.addEventListener('click', handleClick);
+  document.addEventListener('input', handleInput);
+  document.addEventListener('mouseover', handleHover);
+  document.addEventListener('dragstart', handleDragStart);
+  document.addEventListener('drop', handleDrop);
+}
+
+function removeEventListeners() {
+  document.removeEventListener('click', handleClick);
+  document.removeEventListener('input', handleInput);
+  document.removeEventListener('mouseover', handleHover);
+  document.removeEventListener('dragstart', handleDragStart);
+  document.removeEventListener('drop', handleDrop);
+}
 
 function handleClick(event) {
   if (!isRecording) return;
@@ -42,6 +63,12 @@ function handleDrop(event) {
 }
 
 function recordAction(type, element, additionalData = {}) {
+  checkExtensionStatus();
+  if (!isExtensionActive) {
+    console.warn('Extension context invalidated. Unable to record action.');
+    return;
+  }
+
   try {
     const action = {
       type: type,
@@ -51,9 +78,19 @@ function recordAction(type, element, additionalData = {}) {
       },
       ...additionalData
     };
-    chrome.runtime.sendMessage({type: 'ACTION_RECORDED', action});
+    chrome.runtime.sendMessage({type: 'ACTION_RECORDED', action}, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('Error sending message:', chrome.runtime.lastError);
+        isExtensionActive = false;
+        removeEventListeners();
+      }
+    });
   } catch (error) {
     console.error('Error recording action:', error);
+    if (error.message === 'Extension context invalidated.') {
+      isExtensionActive = false;
+      removeEventListeners();
+    }
     chrome.runtime.sendMessage({type: 'RECORD_ERROR', error: error.message});
   }
 }
@@ -75,3 +112,9 @@ function getXPath(element) {
       ix++;
   }
 }
+
+// Initialize event listeners
+addEventListeners();
+
+// Periodically check extension status
+setInterval(checkExtensionStatus, 5000);
