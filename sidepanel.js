@@ -160,36 +160,36 @@ function showError(message) {
 }
 
 function convertToPlaywright(actions) {
-    let script = `const { chromium } = require('playwright');\n\n`;
-    script += `(async () => {\n`;
-    script += `  const browser = await chromium.launch();\n`;
-    script += `  const page = await browser.newPage();\n`;
-    script += `  await page.goto('${window.location.href}');\n\n`;
-    
-    actions.forEach(action => {
-        switch (action.type) {
-        case 'click':
-            script += `  await page.click('${action.selector.value}');\n`;
-            break;
-        case 'input':
-            script += `  await page.fill('${action.selector.value}', '${action.value}');\n`;
-            break;
-        case 'hover':
-            script += `  await page.hover('${action.selector.value}');\n`;
-            break;
-        case 'dragStart':
-            script += `  await page.dragAndDrop('${action.selector.value}', '${action.dropSelector.value}');\n`;
-            break;
-        case 'drop':
-            // The drop action is handled together with dragStart, so we don't need to do anything here
-            break;
-        default:
-            script += `  // Unsupported action type: ${action.type}\n`;
-        }
-    });
-    
-    script += `\n  await browser.close();\n`;
-    script += `})();\n`;
-    
-    return script;
+  let script = `const { chromium } = require('playwright');\n\n`;
+  script += `(async () => {\n`;
+  script += `  const browser = await chromium.launch();\n`;
+  script += `  const page = await browser.newPage();\n`;
+  script += `  await page.goto('${window.location.href}');\n\n`;
+
+  actions.forEach(action => {
+    switch (action.type) {
+      case 'click':
+        script += `  await page.click('${action.selector.value}');\n`;
+        break;
+      case 'input':
+        script += `  await page.fill('${action.selector.value}', '${action.value}');\n`;
+        break;
+      case 'hover':
+        script += `  await page.hover('${action.selector.value}');\n`;
+        break;
+      case 'dragStart':
+        script += `  await page.dragAndDrop('${action.selector.value}', '${action.dropSelector.value}');\n`;
+        break;
+      case 'drop':
+        // The drop action is handled together with dragStart, so we don't need to do anything here
+        break;
+      default:
+        script += `  // Unsupported action type: ${action.type}\n`;
     }
+  });
+
+  script += `\n  await browser.close();\n`;
+  script += `})();\n`;
+
+  return script;
+}
