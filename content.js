@@ -9,12 +9,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
+// Debounce function
+let timeout;
+const debounce = (func, delay) => {
+  clearTimeout(timeout);
+  timeout = setTimeout(func, delay);
+};
+
 // Capture user actions
 document.addEventListener('click', handleClick);
-document.addEventListener('input', handleInput);
-document.addEventListener('mouseover', handleHover);
+document.addEventListener('input', (event) => debounce(() => handleInput(event), 300));
+document.addEventListener('mouseover', (event) => debounce(() => handleHover(event), 100));
 document.addEventListener('dragstart', handleDragStart);
 document.addEventListener('drop', handleDrop);
+document.addEventListener('change', handleChange); // Add change event listener
+document.addEventListener('keydown', handleKeyDown); // Add keydown event listener
+document.addEventListener('scroll', handleScroll); // Add scroll event listener
 
 function handleClick(event) {
   if (!isRecording) return;
@@ -36,18 +46,33 @@ function handleDragStart(event) {
   recordAction('dragStart', event.target);
 }
 
-function handleDrop(event) {
+function handleChange(event) {
   if (!isRecording) return;
-  recordAction('drop', event.target);
+  if (event.target.tagName === 'SELECT') {
+    recordAction('select', event.target, { value: event.target.value });
+  } else if (event.target.type === 'file') {
+    recordAction('fileUpload', event.target, { files: event.target.files });
+  }
+}
+
+function handleKeyDown(event) {
+  if (!isRecording) return;
+  recordAction('keyPress', event.target, { key: event.key, code: event.code });
+}
+
+function handleScroll(event) {
+  if (!isRecording) return;
+  recordAction('scroll', window, { x: window.scrollX, y: window.scrollY });
 }
 
 function recordAction(type, element, additionalData = {}) {
+  if (!isRecording) return; // Add check for recording status
   try {
     const action = {
       type: type,
       selector: {
-        type: 'xpath',
-        value: getXPath(element)
+        type: element === window ? 'window' : 'xpath', // Special case for window
+        value: element === window ? '' : getXPath(element)
       },
       ...additionalData
     };

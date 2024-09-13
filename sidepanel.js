@@ -18,6 +18,7 @@ generateButton.addEventListener('click', generateScript);
 simulateButton.addEventListener('click', () => chrome.runtime.sendMessage({type: 'SIMULATE_SCRIPT'}));
 saveButton.addEventListener('click', saveActions);
 loadButton.addEventListener('click', loadActions);
+resetButton.addEventListener('click', resetPanel); // Add reset button listener
 
 // Listen for messages from background script
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -159,6 +160,13 @@ function showError(message) {
   }, 5000);
 }
 
+function resetPanel() {
+  recordedActions = [];
+  updateActionList();
+  scriptOutput.textContent = '';
+  chrome.runtime.sendMessage({ type: 'UPDATE_ACTIONS', actions: recordedActions });
+}
+
 function convertToPlaywright(actions) {
     let script = `const { chromium } = require('playwright');\n\n`;
     script += `(async () => {\n`;
@@ -180,16 +188,58 @@ function convertToPlaywright(actions) {
         case 'dragStart':
             script += `  await page.dragAndDrop('${action.selector.value}', '${action.dropSelector.value}');\n`;
             break;
-        case 'drop':
-            // The drop action is handled together with dragStart, so we don't need to do anything here
+        case 'type':
+            script += `  await page.type('${action.selector.value}', '${action.value}');\n`;
+            break;
+        case 'keyPress':
+            script += `  await page.keyboard.press('${action.key}');\n`;
+            break;
+        case 'select':
+            script += `  await page.selectOption('${action.selector.value}', '${action.value}');\n`;
+            break;
+        case 'fileUpload':
+            script += `  await page.setInputFiles('${action.selector.value}', '${action.files}');\n`;
+            break;
+        case 'navigate':
+            script += `  await page.goto('${action.url}');\n`;
+            break;
+        case 'back':
+            script += `  await page.goBack();\n`;
+            break;
+        case 'forward':
+            script += `  await page.goForward();\n`;
+            break;
+        case 'refresh':
+            script += `  await page.reload();\n`;
+            break;
+        case 'waitForElement':
+            script += `  await page.waitForSelector('${action.selector.value}');\n`;
+            break;
+        case 'waitForNavigation':
+            script += `  await page.waitForNavigation();\n`;
+            break;
+        case 'waitForTimeout':
+            script += `  await page.waitForTimeout(${action.duration});\n`;
+            break;
+        case 'assert':
+            script += `  // Implement assert logic here\n`;
+            break;
+        case 'scroll':
+            script += `  await page.evaluate(() => window.scrollTo(${action.x}, ${action.y}));\n`;
+            break;
+        case 'screenshot':
+            script += `  await page.screenshot({ path: 'screenshot.png' });\n`;
+            break;
+        case 'executeJavaScript':
+            script += `  await page.evaluate(\`${action.script}\`);\n`;
             break;
         default:
             script += `  // Unsupported action type: ${action.type}\n`;
         }
     });
-    
+
     script += `\n  await browser.close();\n`;
     script += `})();\n`;
-    
+
     return script;
-    }
+}

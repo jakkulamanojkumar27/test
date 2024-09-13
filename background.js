@@ -95,9 +95,15 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 // Function to simulate actions (will be injected into the page)
-function simulateActions(actions) {
-  actions.forEach(action => {
-    const element = document.evaluate(action.selector.value, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+async function simulateActions(actions) {
+  for (const action of actions) {
+    let element;
+    if (action.selector.type === 'xpath') {
+      element = document.evaluate(action.selector.value, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+    } else if (action.selector.type === 'window') {
+      element = window;
+    }
+
     if (element) {
       switch (action.type) {
         case 'click':
@@ -112,12 +118,55 @@ function simulateActions(actions) {
           element.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
           break;
         case 'dragStart':
-          element.dispatchEvent(new MouseEvent('dragstart', { bubbles: true }));
+          // Implement drag and drop logic here
           break;
         case 'drop':
-          element.dispatchEvent(new MouseEvent('drop', { bubbles: true }));
+          // Implement drag and drop logic here
+          break;
+        case 'select':
+          element.value = action.value;
+          element.dispatchEvent(new Event('change', { bubbles: true }));
+          break;
+        case 'fileUpload':
+          // Implement file upload logic here
+          break;
+        case 'navigate':
+          window.location.href = action.url;
+          break;
+        case 'back':
+          window.history.back();
+          break;
+        case 'forward':
+          window.history.forward();
+          break;
+        case 'refresh':
+          window.location.reload();
+          break;
+        case 'waitForElement':
+          // Implement wait for element logic here
+          break;
+        case 'waitForNavigation':
+          // Implement wait for navigation logic here
+          break;
+        case 'waitForTimeout':
+          await new Promise(resolve => setTimeout(resolve, action.duration));
+          break;
+        case 'assert':
+          // Implement assert logic here
+          break;
+        case 'scroll':
+          window.scrollTo(action.x, action.y);
+          break;
+        case 'screenshot':
+          // Implement screenshot logic here
+          break;
+        case 'executeJavaScript':
+          eval(action.script);
+          break;
+        case 'keyPress':
+          element.dispatchEvent(new KeyboardEvent('keydown', { key: action.key, code: action.code, bubbles: true }));
           break;
       }
     }
-  });
+  }
 }
